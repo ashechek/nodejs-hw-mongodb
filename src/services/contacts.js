@@ -1,3 +1,4 @@
+import createHttpError from 'http-errors';
 import { SORT_ORDER } from '../constants/index.js';
 import { ContactsCollection } from '../db/models/contact.js';
 import { calculatePaginationData } from '../utils/calculatePaginationData.js';
@@ -8,11 +9,12 @@ export const getAllContacts = async ({
   sortOrder = SORT_ORDER.ASC,
   sortBy = '_id',
   filter = {},
+  user,
 }) => {
   const limit = perPage;
   const skip = (page - 1) * perPage;
 
-  const contactsQuery = ContactsCollection.find();
+  const contactsQuery = ContactsCollection.find({ userId: user._id });
 
   if (filter.type) {
     contactsQuery.where('contactType').equals(filter.type);
@@ -37,19 +39,30 @@ export const getAllContacts = async ({
   };
 };
 
-export const getContactById = async (contactId) => {
-  const contact = await ContactsCollection.findById(contactId);
+export const getContactById = async (contactId, user) => {
+  const contact = await ContactsCollection.findOne({
+    _id: contactId,
+    userId: user._id,
+  });
+
+  if (!contact) {
+    throw createHttpError(404, 'Contact not found');
+  }
+
   return contact;
 };
 
-export const postContactById = async (newContact) => {
-  const contact = await ContactsCollection.create(newContact);
+export const postContactById = async (newContact, user) => {
+  const contact = await ContactsCollection.create({
+    userId: user._id,
+    ...newContact,
+  });
   return contact;
 };
 
-export const updateContact = async (contactId, payload, options = {}) => {
+export const updateContact = async (user, contactId, payload, options = {}) => {
   const rawResult = await ContactsCollection.findOneAndUpdate(
-    { _id: contactId },
+    { _id: contactId, userId: user._id },
     payload,
     {
       new: true,
@@ -66,7 +79,15 @@ export const updateContact = async (contactId, payload, options = {}) => {
   };
 };
 
-export const deleteContact = async (contactId) => {
-  const deletedContact = await ContactsCollection.findByIdAndDelete(contactId);
+export const deleteContact = async (contactId, user) => {
+  const deletedContact = await ContactsCollection.findOneAndDelete({
+    _id: contactId,
+    userId: user._id,
+  });
+
+  if (!deletedContact) {
+    throw createHttpError(404, 'Contact not found');
+  }
+
   return deletedContact;
 };
